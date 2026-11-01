@@ -1,7 +1,7 @@
 import * as T from '../assets/three.r160.min.js';
-import {OrbitControls} from '../assets/OrbitControls.js?v=release-fb38014e554f';
-import {createRenderLoop} from './render-loop.js?v=release-fb38014e554f';
-import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=release-fb38014e554f';
+import {OrbitControls} from '../assets/OrbitControls.js?v=release-4a258853a4ab';
+import {createRenderLoop} from './render-loop.js?v=release-4a258853a4ab';
+import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=release-4a258853a4ab';
 
 const $=id=>document.getElementById(id);
 const host=$('product-stage'),canvas=$('product-canvas');
@@ -73,7 +73,7 @@ function home(nextMode=mode,animate=true){
  const narrow=host.clientWidth<700;
  let distance=productId==='flow'?(nextMode==='section'?12.6:narrow?12.6:8.3):12.8;
  const inspection={front:[0,0,1],side:[-1,0,0],rear:[0,0,-1],top:[0,1,.001]}[new URLSearchParams(location.search).get('inspect')];
- const direction=inspection?new T.Vector3(...inspection):productId==='dp'?new T.Vector3(-1.0,.30,1.45):productId==='balance'?new T.Vector3(-.75,.28,1.18):nextMode==='section'?new T.Vector3(.08,.05,1):new T.Vector3(.38,.25,1);
+ const direction=inspection?new T.Vector3(...inspection):productId==='dp'?new T.Vector3(-1.45,.28,1.0):productId==='balance'?new T.Vector3(-.75,.28,1.18):nextMode==='section'?new T.Vector3(.08,.05,1):new T.Vector3(.38,.25,1);
  if(productId!=='flow'){
   // Fit actual exterior vertices to the usable viewport; the forward handwheel
   // needs additional perspective clearance on narrow phone screens.
