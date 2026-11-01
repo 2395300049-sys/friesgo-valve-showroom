@@ -1,6 +1,7 @@
-import * as T from 'three';
-import {OrbitControls} from '../assets/OrbitControls.js';
-import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=20261101-photo-final3';
+import * as T from '../assets/three.r160.min.js';
+import {OrbitControls} from '../assets/OrbitControls.js?v=release-6c26aae12b2f';
+import {createRenderLoop} from './render-loop.js?v=release-6c26aae12b2f';
+import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=release-6c26aae12b2f';
 
 const $=id=>document.getElementById(id);
 const host=$('product-stage'),canvas=$('product-canvas');
@@ -9,9 +10,9 @@ const ids=['exterior-view','section-view','auto-rotate','reset-product','save-vi
 ids.forEach(id=>$(id).disabled=true);
 let renderer,scene,camera,controls,manifest,mode='exterior',selected=null,motion=null,rig,groundShadow,cutMotion=null,cutAmount=0;
 let frame={top:150,bottom:120,height:400};
-let lastNarrow,lastLandscape;
+let lastNarrow,lastLandscape,renderLoop,lastSize='';
 let flowPromise=null,flowReady=false,selectionVersion=0;
-let productId='flow';const photoModels={};
+let productId='flow';const photoModels={},photoPromises={};
 const FLOW_PRODUCT={name:'自力式流量控制阀',english:'Self-acting flow control valve.',photo:'photo-flow.jpg'};
 const productInfo=()=>productId==='flow'?FLOW_PRODUCT:PHOTO_PRODUCTS[productId];
 const activeMaterials=()=>productId==='flow'?materials:photoModels[productId].materials;
@@ -71,13 +72,14 @@ function home(nextMode=mode,animate=true){
  const aspect=host.clientWidth/host.clientHeight;
  const narrow=host.clientWidth<700;
  let distance=productId==='flow'?(nextMode==='section'?12.6:narrow?12.6:8.3):12.8;
- const direction=productId==='dp'?new T.Vector3(-1.35,.26,1):productId==='balance'?new T.Vector3(-.75,.28,1.18):nextMode==='section'?new T.Vector3(.08,.05,1):new T.Vector3(.38,.25,1);
+ const inspection={front:[0,0,1],side:[-1,0,0],rear:[0,0,-1],top:[0,1,.001]}[new URLSearchParams(location.search).get('inspect')];
+ const direction=inspection?new T.Vector3(...inspection):productId==='dp'?new T.Vector3(-1.0,.30,1.45):productId==='balance'?new T.Vector3(-.75,.28,1.18):nextMode==='section'?new T.Vector3(.08,.05,1):new T.Vector3(.38,.25,1);
  if(productId!=='flow'){
   // Fit actual exterior vertices to the usable viewport; the forward handwheel
   // needs additional perspective clearance on narrow phone screens.
   const d=direction.clone().normalize(),right=new T.Vector3().crossVectors(Y_AXIS,d).normalize(),up=new T.Vector3().crossVectors(d,right).normalize(),p=new T.Vector3(),tan=Math.tan(T.MathUtils.degToRad(camera.fov/2)),margin=.90;
   const model=photoModels[productId].root;model.updateWorldMatrix(true,true);distance=controls.minDistance;
-  model.traverse(o=>{if(!o.isMesh)return;const a=o.geometry.attributes.position;for(let i=0;i<a.count;i++){p.fromBufferAttribute(a,i).applyMatrix4(o.matrixWorld);distance=Math.max(distance,p.dot(d)+Math.max(Math.abs(p.dot(right))/(tan*camera.aspect*margin),Math.abs(p.dot(up))/(tan*margin)));}});
+  for(const point of photoModels[productId].fitPoints){p.copy(point).applyMatrix4(rig.matrixWorld);distance=Math.max(distance,p.dot(d)+Math.max(Math.abs(p.dot(right))/(tan*camera.aspect*margin),Math.abs(p.dot(up))/(tan*margin)));}
   distance+=.15;
  }
  controls.maxDistance=Math.max(24,distance*1.8);
@@ -87,9 +89,9 @@ function home(nextMode=mode,animate=true){
 }
 function resize(){
  const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;
- const landscape=matchMedia('(orientation: landscape) and (max-height: 520px) and (max-width: 1100px)').matches,copy=document.querySelector('.hero-copy'),copyBottom=copy.offsetTop+copy.offsetHeight;frame.top=landscape?12:Math.max(w<700?140:h<760?155:180,copyBottom+18);frame.bottom=landscape?110:w<700?118:130;frame.height=Math.max(landscape?80:110,h-frame.top-frame.bottom);
- renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(w,h,false);camera.aspect=w/frame.height;camera.updateProjectionMatrix();
- const narrow=w<700;if(lastNarrow!==undefined&&(lastNarrow!==narrow||lastLandscape!==landscape))home(mode,false);lastNarrow=narrow;lastLandscape=landscape;
+ const landscape=matchMedia('(orientation: landscape) and (max-height: 520px) and (max-width: 1100px)').matches;frame.top=12;frame.bottom=landscape?92:w<700?104:100;frame.height=Math.max(90,h-frame.top-frame.bottom);
+ const size=w+':'+h+':'+devicePixelRatio;if(size===lastSize)return;lastSize=size;renderer.setPixelRatio(Math.min(devicePixelRatio,w<700?1.25:1.5));renderer.setSize(w,h,false);camera.aspect=w/frame.height;camera.updateProjectionMatrix();
+ const narrow=w<700;if(document.body.dataset.cadReady==='true')home(mode,false);lastNarrow=narrow;lastLandscape=landscape;renderLoop?.request(350);
 }
 function clearSelection(){selected=null;$('part-detail').hidden=true;for(const marker of markers)marker.el.setAttribute('aria-pressed','false');for(const map of[materials,...Object.values(photoModels).map(p=>p.materials)])for(const m of map.values())m.emissive?.setHex(0);}
 function selectPart(id){
@@ -142,7 +144,7 @@ function setProduct(next,animate=true){
  const url=new URL(location.href);url.searchParams.set('product',next);history.replaceState(null,'',url);announceState();
 }
 function updateCut(now){
- if(productId!=='flow'){roots.exterior.visible=roots.section.visible=roots.caps.visible=false;rig.rotation.z=-.12;if(groundShadow)groundShadow.position.y=-3.6;return;}
+ if(productId!=='flow'){roots.exterior.visible=roots.section.visible=roots.caps.visible=false;rig.rotation.z=0;if(groundShadow)groundShadow.position.y=-3.6;return;}
  if(cutMotion){const t=cutMotion.duration?Math.min(1,(now-cutMotion.start)/cutMotion.duration):1,e=t*t*(3-2*t);cutAmount=T.MathUtils.lerp(cutMotion.from,cutMotion.to,e);if(t===1){cutMotion=null;document.body.dataset.transition='false';$('save-view').disabled=false;}}
  cutPlane.constant=1.6*(1-cutAmount)+.000001;
  rig.rotation.z=(host.clientWidth<700?-.18:-1.17)*(1-cutAmount);
@@ -157,10 +159,10 @@ function tick(now){
  updateCut(now);rig.updateMatrixWorld(true);
  controls.update();
  const w=host.clientWidth,h=host.clientHeight,eye=camera.position.clone().sub(controls.target).normalize();
- for(const m of markers){const p=m.position.clone().applyMatrix4(rig.matrixWorld).project(camera);m.el.hidden=p.z<-1||p.z>1||Math.abs(p.x)>.92||Math.abs(p.y)>.92||(mode==='section'&&eye.z<.2);m.el.style.left=(p.x*.5+.5)*w+'px';m.el.style.top=(frame.top+(-p.y*.5+.5)*frame.height)+'px';}
+ if(document.body.dataset.annotations==='true')for(const m of markers){const p=m.position.clone().applyMatrix4(rig.matrixWorld).project(camera);m.el.hidden=p.z<-1||p.z>1||Math.abs(p.x)>.92||Math.abs(p.y)>.92||(mode==='section'&&eye.z<.2);m.el.style.left=(p.x*.5+.5)*w+'px';m.el.style.top=(frame.top+(-p.y*.5+.5)*frame.height)+'px';}
  renderView();
 }
-function renderView(){renderer.setViewport(0,0,host.clientWidth,host.clientHeight);renderer.clear();renderer.setViewport(0,frame.bottom,host.clientWidth,frame.height);renderer.render(scene,camera);}
+function renderView(){renderer.setViewport(0,0,host.clientWidth,host.clientHeight);renderer.clear();renderer.setViewport(0,frame.bottom,host.clientWidth,frame.height);renderer.render(scene,camera);canvas.dataset.renderCalls=String(renderer.info.render.calls);canvas.dataset.triangles=String(renderer.info.render.triangles);canvas.dataset.frames=String((Number(canvas.dataset.frames)||0)+1);}
 async function ensureFlowModel(){
  if(flowReady)return;
  if(!flowPromise)flowPromise=(async()=>{
@@ -183,31 +185,40 @@ async function ensureFlowModel(){
  })().catch(error=>{flowPromise=null;throw error;});
  return flowPromise;
 }
+async function ensurePhotoModel(id){
+ if(photoModels[id])return;
+ if(photoPromises[id])return photoPromises[id];
+ return photoPromises[id]=(async()=>{const model=await buildPhotoProduct(id);model.root.visible=false;rig.add(model.root);model.root.updateWorldMatrix(true,true);
+ const inverse=rig.matrixWorld.clone().invert();model.fitPoints=[];
+ model.root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;g.computeBoundingBox();const b=g.boundingBox,m=inverse.clone().multiply(o.matrixWorld);for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z])model.fitPoints.push(new T.Vector3(x,y,z).applyMatrix4(m));});
+ photoModels[id]=model;})().catch(error=>{delete photoPromises[id];throw error;});
+}
 async function selectProduct(next,animate=true){
  if(!['flow','dp','balance'].includes(next))next='flow';const ticket=++selectionVersion;
+ if(next!=='flow'){try{await ensurePhotoModel(next);}catch(error){if(ticket===selectionVersion){$('loading').hidden=true;$('render-error').hidden=false;}return false;}}
  if(next==='flow'&&!flowReady){$('loading').hidden=false;$('loading').querySelector('p').textContent=document.documentElement.lang==='en'?'Loading 3D structure…':'正在载入三维结构…';try{await ensureFlowModel();}catch(error){if(ticket===selectionVersion){$('loading').hidden=true;$('render-error').hidden=false;}console.error('Flow geometry:',error);return false;}}
  if(ticket!==selectionVersion)return false;
- $('render-error').hidden=true;setProduct(next,animate);$('loading').hidden=true;document.body.dataset.cadReady='true';return true;
+ $('render-error').hidden=true;setProduct(next,animate);$('loading').hidden=true;document.body.dataset.cadReady='true';renderLoop?.request(1600);return true;
 }
 
 async function init(){
  try{
-  renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false,preserveDrawingBuffer:true,powerPreference:'high-performance'});
-  renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.04;renderer.localClippingEnabled=true;renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.autoClear=false;renderer.setClearColor(0xf5f5f7);
+  renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false,preserveDrawingBuffer:false,powerPreference:'default'});
+  renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.04;renderer.localClippingEnabled=true;renderer.shadowMap.enabled=false;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.autoClear=false;renderer.setClearColor(0xf5f5f7);
   scene=new T.Scene();scene.background=new T.Color(0xf5f5f7);
-  camera=new T.PerspectiveCamera(32,1,.05,150);controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.dampingFactor=.06;controls.enablePan=false;controls.minDistance=6.5;controls.maxDistance=24;controls.maxPolarAngle=Math.PI*.85;controls.autoRotateSpeed=.55;
+  camera=new T.PerspectiveCamera(32,1,.05,150);controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.dampingFactor=.06;controls.enablePan=false;controls.minDistance=6.5;controls.maxDistance=24;controls.maxPolarAngle=Math.PI*.85;controls.autoRotateSpeed=.55;controls.addEventListener('change',()=>renderLoop?.request(250));
   controls.addEventListener('start',()=>{motion=null;controls.autoRotate=false;$('auto-rotate').setAttribute('aria-pressed','false');document.body.dataset.interacted='true';});
   scene.add(new T.HemisphereLight(0xeef3ff,0x8392a6,.42));
   const key=new T.DirectionalLight(0xfffaf2,2.8);key.position.set(-3,6,8);key.castShadow=true;key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-5,right:5,top:5,bottom:-5,near:.1,far:30});key.shadow.bias=-.00005;key.shadow.normalBias=.006;key.shadow.radius=3;scene.add(key);
   const fill=new T.DirectionalLight(0xc9dcff,.8);fill.position.set(5,1,-4);scene.add(fill);
   studioEnvironment();
   rig=new T.Group();scene.add(rig);roots.exterior=new T.Group();roots.section=new T.Group();roots.caps=new T.Group();rig.add(roots.exterior,roots.section,roots.caps);
-  await Promise.all(Object.keys(PHOTO_PRODUCTS).map(async id=>{const model=await buildPhotoProduct(id);photoModels[id]=model;model.root.visible=false;rig.add(model.root);}));
+  // Build only the requested exterior. Other products are prepared on selection.
   // Soft contact shadow, generated locally; no product geometry is synthesized.
   const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=128;const ctx=shadowCanvas.getContext('2d');const grad=ctx.createRadialGradient(64,64,2,64,64,64);grad.addColorStop(0,'rgba(29,43,61,.18)');grad.addColorStop(.45,'rgba(29,43,61,.07)');grad.addColorStop(1,'rgba(29,43,61,0)');ctx.fillStyle=grad;ctx.fillRect(0,0,128,128);
   groundShadow=new T.Mesh(new T.PlaneGeometry(7.6,4.8),new T.MeshBasicMaterial({map:new T.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));groundShadow.rotation.x=-Math.PI/2;scene.add(groundShadow);
-  resize();home('exterior',false);setMode('exterior');cutMotion=null;updateCut(performance.now());document.body.dataset.transition='false';document.body.dataset.annotations='false';motion=null;home('exterior',false);
-  const observer=new ResizeObserver(resize);observer.observe(host);observer.observe(document.querySelector('.hero-copy'));ids.forEach(id=>$(id).disabled=false);$('loading').hidden=true;
+  resize();document.body.dataset.transition='false';document.body.dataset.annotations='false';
+  const observer=new ResizeObserver(resize);observer.observe(host);ids.forEach(id=>$(id).disabled=false);$('loading').hidden=true;
   for(const b of document.querySelectorAll('.product-family [data-product]'))b.onclick=()=>selectProduct(b.dataset.product);
   await selectProduct(new URLSearchParams(location.search).get('product')||'flow',false);
   $('exterior-view').onclick=()=>setMode('exterior');$('section-view').onclick=()=>setMode('section');
@@ -225,9 +236,8 @@ async function init(){
    image.toBlob(blob=>{if(!blob)return;const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download='FriesGo_'+productInfo().name+'_'+mode+'.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},'image/png');
   };
   $('export-model').onclick=async()=>{if(productId==='flow')return;const id=productId,button=$('export-model');button.disabled=true;button.textContent='正在导出…';clearSelection();try{const {GLTFExporter}=await import('../assets/GLTFExporter.js');const copy=photoModels[id].root.clone(true);copy.updateMatrixWorld(true);const result=await new GLTFExporter().parseAsync(copy,{binary:true,onlyVisible:true,maxTextureSize:1024});const url=URL.createObjectURL(new Blob([result],{type:'model/gltf-binary'})),a=document.createElement('a');a.href=url;a.download=PHOTO_PRODUCTS[id].file;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);button.textContent='下载三维模型 ↗';}catch(error){console.error('Photo model export:',error);button.textContent='导出失败，点此重试';}finally{button.disabled=false;}};
-  renderer.setAnimationLoop(tick);
-  document.addEventListener('visibilitychange',()=>renderer.setAnimationLoop(document.hidden?null:tick));
-  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();renderer.setAnimationLoop(null);$('render-error').hidden=false;});
+  renderLoop=createRenderLoop(tick,{fps:60,continuous:()=>!!(motion||cutMotion||controls.autoRotate)});
+  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();renderLoop?.stop();$('render-error').hidden=false;});
  }catch(e){productId=['flow','dp','balance'].includes(new URLSearchParams(location.search).get('product'))?new URLSearchParams(location.search).get('product'):'flow';announceState();console.error('CAD product viewer:',e);$('loading').hidden=true;$('render-error').hidden=false;document.body.dataset.cadReady='error';}
 }
 $('photo-open').onclick=()=>{const info=productInfo();$('product-photo').src='assets/'+info.photo;$('product-photo').alt=info.name+'实物照片';$('photo-dialog').showModal();announceState();};$('photo-close').onclick=()=>$('photo-dialog').close();$('retry-model').onclick=()=>location.reload();

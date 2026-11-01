@@ -2,17 +2,17 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f5f5f7"><meta name="description" content="Explore FriesGo industrial valves in interactive 3D. Rotate, zoom and view product photos."><title>FriesGo · 自力式流量控制阀 · 3D 产品展示</title>
-  <link rel="stylesheet" href="product.css?v=20261102-final">
-  <script type="importmap">{"imports":{"three":"./assets/three.module.js"}}</script>
-  <script type="module" src="src/product-viewer.js?v=20261102-final"></script>
-<link rel="stylesheet" href="customer.css?v=20261102-final"><script>const u=new URL(location.href);if(!u.searchParams.has("product"))u.searchParams.set("product","dp");if(!u.searchParams.has("lang"))u.searchParams.set("lang",localStorage.getItem("friesgo-language")||"en");history.replaceState(null,"",u);</script><script type="module" src="customer-ui.js?v=20261102-final"></script></head>
+  <meta name="theme-color" content="#f5f5f7"><meta name="description" content="Explore FriesGo industrial valves in interactive 3D. Rotate, zoom and view product photos."><title>FriesGo · 三维阀门展示</title>
+  <link rel="stylesheet" href="product.css?v=release-6c26aae12b2f">
+  
+  <script type="module" src="src/product-viewer.min.js?v=release-6c26aae12b2f"></script>
+<script>const u=new URL(location.href);if(!u.searchParams.has("product"))u.searchParams.set("product","dp");if(!u.searchParams.has("lang"))u.searchParams.set("lang",(()=>{try{return localStorage.getItem("friesgo-language")||"en"}catch(_){return "en"}})());history.replaceState(null,"",u);</script><script type="module" src="customer-ui.js?v=release-6c26aae12b2f"></script></head>
 <body>
-<header class="product-header"><a class="brand" href="index.html" aria-label="FriesGo 3D products"><img src="assets/friesgo-logo.png" alt="FriesGo Global"></a><span class="header-label" id="product-header-label">流量控制阀</span><nav class="product-links"><button id="language-toggle" aria-label="Switch language">中文</button><button id="photo-open" class="text-link">实物参考</button><a class="back" id="header-applications" href="solutions.html?lang=en">建筑方案 <span>↗</span></a></nav></header>
+<header class="product-header"><a class="brand" href="index.html" aria-label="FriesGo 3D products"><img src="assets/friesgo-logo.png" alt="FriesGo Global"></a><span class="header-label" id="product-header-label">流量控制阀</span><nav class="product-links"><a class="back" id="header-applications" href="solutions.html?lang=en">应用方案 ↗</a><button id="photo-open" class="text-link">实物照片</button><button id="language-toggle" aria-label="Switch language">中文</button></nav></header>
 <main>
 <nav class="product-family" aria-label="选择阀门产品"><button data-product="flow" aria-pressed="true">流量控制阀</button><button data-product="dp" aria-pressed="false">压差控制阀</button><button data-product="balance" aria-pressed="false">数字锁定平衡阀</button></nav>
   <section class="product-hero" aria-label="自力式流量控制阀三维产品展示">
-    <div class="hero-copy"><p class="eyebrow">FRIESGO · PRODUCT COLLECTION</p><h1 id="product-title">自力式流量控制阀</h1><p class="intro" id="product-subtitle">Self-acting flow control valve.</p></div>
+    <div class="hero-copy"><p class="eyebrow" id="product-code">ZTY47-16 · FRIESGO</p><h1 id="product-title">自力式流量控制阀</h1><p class="intro" id="product-subtitle">Self-acting flow control valve.</p></div>
     <div class="product-stage" id="product-stage">
       <img id="customer-poster" class="customer-poster" src="assets/poster-dp.webp" alt="" aria-hidden="true"><div id="loading" role="status"><span class="spinner"></span><p>正在打开三维产品…</p></div>
       <canvas id="product-canvas" tabindex="0" aria-label="阀门三维模型，拖动旋转，滚轮或双指缩放；方向键旋转，加减键缩放，Home 复位。"></canvas>
