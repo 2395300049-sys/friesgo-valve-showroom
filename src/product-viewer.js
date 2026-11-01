@@ -1,7 +1,7 @@
 import * as T from '../assets/three.r160.min.js';
-import {OrbitControls} from '../assets/OrbitControls.js?v=release-4a258853a4ab';
-import {createRenderLoop} from './render-loop.js?v=release-4a258853a4ab';
-import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=release-4a258853a4ab';
+import {OrbitControls} from '../assets/OrbitControls.js?v=release-2697138eb574';
+import {createRenderLoop} from './render-loop.js?v=release-2697138eb574';
+import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=release-2697138eb574';
 
 const $=id=>document.getElementById(id);
 const host=$('product-stage'),canvas=$('product-canvas');
