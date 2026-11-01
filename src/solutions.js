@@ -1,6 +1,6 @@
 import * as T from '../assets/three.r160.min.js';
-import {OrbitControls} from '../assets/OrbitControls.js?v=release-2697138eb574';
-import {createRenderLoop} from './render-loop.js?v=release-2697138eb574';
+import {OrbitControls} from '../assets/OrbitControls.js?v=release-1c6688b49b73';
+import {createRenderLoop} from './render-loop.js?v=release-1c6688b49b73';
 (()=>{
 const DATA=(()=>{
 

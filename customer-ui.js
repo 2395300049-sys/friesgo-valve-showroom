@@ -43,7 +43,7 @@ function apply(){
  if(state.part!==null&&!$('part-detail').hidden){const n=state.part;replace('part-name',en?(partNames[id][n]||'CAD component '+String(n+1)):(chineseNames[id][n]||'CAD 部件 '+String(n+1)));replace('part-copy',en?(descriptions[id][n]||'This component comes from the supplied CAD. Its precise name should be checked against the manufacturer’s parts list.'):(zhDescriptions[id][n]||'原 CAD 中的组件，名称与控制关系请结合厂家明细表确认。'));replace('part-note',en?(photo?'Exterior reconstructed from photographs · dimensions unverified':'Static CAD illustration · display colours'):(photo?'照片外观重建 · 尺寸比例待核定':'静态 CAD 展示 · 配色用于观察'));}
  const basis=en?(photo?'Exterior reconstructed from multi-view photographs. Dimensions and materials are illustrative; internal structure is not modelled.':'Based on supplied CAD geometry. The section shows modelled structure; display colours are not certified material data.'):(photo?'根据多视角照片重建外观，尺寸与配色仅作示意，未推测内部结构。':'基于已有 CAD 几何展示结构，剖面配色用于区分部位。');
  for(const key of ['flow','photo']){const el=$(key+'-basis');el.querySelector('summary').textContent=en?'About this model':'模型说明';const box=el.querySelector('.customer-basis-copy');if(box.textContent!==basis)box.textContent=basis;}
- const poster=$('customer-poster');if(poster.dataset.product!==id){poster.src='assets/poster-'+id+'.webp';poster.dataset.product=id;}
+ const poster=$('customer-poster');if(poster.dataset.product!==id){poster.src='assets/'+(id==='dp'?'poster-dp-rear-v2.webp':'poster-'+id+'.webp');poster.dataset.product=id;}
 }
 document.addEventListener('friesgo:state',event=>{state={...state,...event.detail};apply();});
 document.addEventListener('click',event=>{if(event.target.closest('#auto-rotate,#toggle-parts,#photo-open'))apply();});
