@@ -1,8 +1,8 @@
 {
-  "version": "release-1c6688b49b73",
+  "version": "release-20477fec5de5",
   "public_entry": "https://2395300049-sys.github.io/friesgo-valve-showroom/",
   "cad_geometry_unchanged": true,
   "photo_geometry": "exterior reconstruction; no certified dimensions",
   "economic_module": false,
-  "initial_product_js_bytes": 753276
+  "initial_product_js_bytes": 757293
 }

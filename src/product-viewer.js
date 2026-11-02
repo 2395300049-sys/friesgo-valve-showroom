@@ -1,15 +1,15 @@
 import * as T from '../assets/three.r160.min.js';
-import {OrbitControls} from '../assets/OrbitControls.js?v=release-1c6688b49b73';
-import {createRenderLoop} from './render-loop.js?v=release-1c6688b49b73';
-import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=release-1c6688b49b73';
+import {OrbitControls} from '../assets/OrbitControls.js?v=release-20477fec5de5';
+import {createRenderLoop} from './render-loop.js?v=release-20477fec5de5';
+import {PHOTO_PRODUCTS,buildPhotoProduct} from './photo-products.js?v=release-20477fec5de5';
 
 const $=id=>document.getElementById(id);
 const host=$('product-stage'),canvas=$('product-canvas');
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ids=['exterior-view','section-view','auto-rotate','reset-product','save-view','toggle-parts'];
 ids.forEach(id=>$(id).disabled=true);
-let renderer,scene,camera,controls,manifest,mode='exterior',selected=null,motion=null,rig,groundShadow,cutMotion=null,cutAmount=0;
-let frame={top:150,bottom:120,height:400};
+let renderer,scene,camera,controls,manifest,mode='exterior',selected=null,motion=null,rig,cutMotion=null,cutAmount=0;
+let frame={top:200,bottom:136,height:400,left:0,width:400};
 let lastNarrow,lastLandscape,renderLoop,lastSize='';
 let flowPromise=null,flowReady=false,selectionVersion=0;
 let productId='flow';const photoModels={},photoPromises={};
@@ -41,7 +41,7 @@ function materialFor(id,cap,sheet){
  else if([5,9,10,17].includes(id)||sheet){color=0x484b50;metalness=.18;roughness=.62;}
  else {color=0xbfc7ce;metalness=.94;roughness=.2;}
  const painted=[0,1,2,19].includes(id)&&!cap;
- const m=new T.MeshPhysicalMaterial({color,metalness,roughness,clearcoat:painted?.8:cap?0:.2,clearcoatRoughness:painted?.18:.25,envMapIntensity:cap?.65:1.25,side:T.DoubleSide,clippingPlanes:[cutPlane],polygonOffset:sheet,polygonOffsetFactor:sheet?-1:0});
+ const m=new T.MeshPhysicalMaterial({color,metalness,roughness,clearcoat:painted?.55:cap?0:.2,clearcoatRoughness:painted?.18:.25,envMapIntensity:cap?.65:1.25,side:T.DoubleSide,clippingPlanes:[cutPlane],polygonOffset:sheet,polygonOffsetFactor:sheet?-1:0});
  if(cap){
   m.onBeforeCompile=shader=>{
    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vCutUV;').replace('#include <begin_vertex>','#include <begin_vertex>\nvCutUV=position.xy;');
@@ -89,9 +89,10 @@ function home(nextMode=mode,animate=true){
 }
 function resize(){
  const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;
- const landscape=matchMedia('(orientation: landscape) and (max-height: 520px) and (max-width: 1100px)').matches;frame.top=12;frame.bottom=landscape?92:w<700?104:100;frame.height=Math.max(90,h-frame.top-frame.bottom);
- const size=w+':'+h+':'+devicePixelRatio;if(size===lastSize)return;lastSize=size;renderer.setPixelRatio(Math.min(devicePixelRatio,w<700?1.25:1.5));renderer.setSize(w,h,false);camera.aspect=w/frame.height;camera.updateProjectionMatrix();
- const narrow=w<700;if(document.body.dataset.cadReady==='true')home(mode,false);lastNarrow=narrow;lastLandscape=landscape;renderLoop?.request(350);
+ const landscape=matchMedia('(orientation: landscape) and (max-height: 520px)').matches,narrow=w<700,cad=productId==='flow';
+ frame.top=landscape?66:Math.max(narrow?(h<700?165:205):160,document.querySelector('.hero-copy').getBoundingClientRect().bottom+28);frame.bottom=(landscape?82:narrow?132:142)+(cad?(landscape?43:58):0);frame.height=Math.max(90,h-frame.top-frame.bottom);frame.left=landscape?w*.34:0;frame.width=w-frame.left;
+ const size=w+':'+h+':'+devicePixelRatio+':'+productId+':'+frame.top;if(size===lastSize)return;lastSize=size;renderer.setPixelRatio(Math.min(devicePixelRatio,w<700?1.25:1.5));renderer.setSize(w,h,false);camera.aspect=frame.width/frame.height;camera.updateProjectionMatrix();
+ if(document.body.dataset.cadReady==='true')home(mode,false);lastNarrow=narrow;lastLandscape=landscape;renderLoop?.request(350);
 }
 function clearSelection(){selected=null;$('part-detail').hidden=true;for(const marker of markers)marker.el.setAttribute('aria-pressed','false');for(const map of[materials,...Object.values(photoModels).map(p=>p.materials)])for(const m of map.values())m.emissive?.setHex(0);}
 function selectPart(id){
@@ -140,15 +141,14 @@ function setProduct(next,animate=true){
  $('photo-dialog-title').textContent=info.name+' · 实物参考';$('product-photo').dataset.src='assets/'+info.photo;$('product-photo').alt=info.name+'用户提供的多视角照片';
  $('photo-dialog-note').textContent=next==='flow'?'此前提供的同类型产品照片，型号与此 CAD 的对应关系尚未核定。':'本模型依据这组用户提供的照片重建外观，照片铭牌型号为 '+info.model+'。';
  $('photo-source-note').textContent=next==='flow'?'':info.name+' · 照片铭牌 '+info.model+'；未收到对应的 STP 或尺寸图。';
- createMarkers();updateCut(performance.now());home(mode,animate);
+ createMarkers();updateCut(performance.now());resize();home(mode,animate);
  const url=new URL(location.href);url.searchParams.set('product',next);history.replaceState(null,'',url);announceState();
 }
 function updateCut(now){
- if(productId!=='flow'){roots.exterior.visible=roots.section.visible=roots.caps.visible=false;rig.rotation.z=0;if(groundShadow)groundShadow.position.y=-3.6;return;}
+ if(productId!=='flow'){roots.exterior.visible=roots.section.visible=roots.caps.visible=false;rig.rotation.z=0;return;}
  if(cutMotion){const t=cutMotion.duration?Math.min(1,(now-cutMotion.start)/cutMotion.duration):1,e=t*t*(3-2*t);cutAmount=T.MathUtils.lerp(cutMotion.from,cutMotion.to,e);if(t===1){cutMotion=null;document.body.dataset.transition='false';$('save-view').disabled=false;}}
  cutPlane.constant=1.6*(1-cutAmount)+.000001;
  rig.rotation.z=(host.clientWidth<700?-.18:-1.17)*(1-cutAmount);
- if(groundShadow)groundShadow.position.y=host.clientWidth<700?-3.5:T.MathUtils.lerp(-2.8,-3.5,cutAmount);
  const settled=cutAmount>=.999999;
  roots.exterior.visible=!settled;roots.section.visible=settled;roots.caps.visible=!settled&&cutAmount>.72;
  const opacity=T.MathUtils.smoothstep(cutAmount,.72,1);
@@ -159,10 +159,10 @@ function tick(now){
  updateCut(now);rig.updateMatrixWorld(true);
  controls.update();
  const w=host.clientWidth,h=host.clientHeight,eye=camera.position.clone().sub(controls.target).normalize();
- if(document.body.dataset.annotations==='true')for(const m of markers){const p=m.position.clone().applyMatrix4(rig.matrixWorld).project(camera);m.el.hidden=p.z<-1||p.z>1||Math.abs(p.x)>.92||Math.abs(p.y)>.92||(mode==='section'&&eye.z<.2);m.el.style.left=(p.x*.5+.5)*w+'px';m.el.style.top=(frame.top+(-p.y*.5+.5)*frame.height)+'px';}
+ if(document.body.dataset.annotations==='true')for(const m of markers){const p=m.position.clone().applyMatrix4(rig.matrixWorld).project(camera);m.el.hidden=p.z<-1||p.z>1||Math.abs(p.x)>.92||Math.abs(p.y)>.92||(mode==='section'&&eye.z<.2);m.el.style.left=(frame.left+(p.x*.5+.5)*frame.width)+'px';m.el.style.top=(frame.top+(-p.y*.5+.5)*frame.height)+'px';}
  renderView();
 }
-function renderView(){renderer.setViewport(0,0,host.clientWidth,host.clientHeight);renderer.clear();renderer.setViewport(0,frame.bottom,host.clientWidth,frame.height);renderer.render(scene,camera);canvas.dataset.renderCalls=String(renderer.info.render.calls);canvas.dataset.triangles=String(renderer.info.render.triangles);canvas.dataset.frames=String((Number(canvas.dataset.frames)||0)+1);}
+function renderView(){renderer.setViewport(0,0,host.clientWidth,host.clientHeight);renderer.clear();renderer.setViewport(frame.left,frame.bottom,frame.width,frame.height);renderer.render(scene,camera);canvas.dataset.renderCalls=String(renderer.info.render.calls);canvas.dataset.triangles=String(renderer.info.render.triangles);canvas.dataset.frames=String((Number(canvas.dataset.frames)||0)+1);}
 async function ensureFlowModel(){
  if(flowReady)return;
  if(!flowPromise)flowPromise=(async()=>{
@@ -195,7 +195,7 @@ async function ensurePhotoModel(id){
 }
 async function selectProduct(next,animate=true){
  if(!['flow','dp','balance'].includes(next))next='flow';const ticket=++selectionVersion;
- if(next!=='flow'){try{await ensurePhotoModel(next);}catch(error){if(ticket===selectionVersion){$('loading').hidden=true;$('render-error').hidden=false;}return false;}}
+ if(next!=='flow'){if(!photoModels[next])$('loading').hidden=false;try{await ensurePhotoModel(next);}catch(error){if(ticket===selectionVersion){$('loading').hidden=true;$('render-error').hidden=false;}return false;}}
  if(next==='flow'&&!flowReady){$('loading').hidden=false;$('loading').querySelector('p').textContent=document.documentElement.lang==='en'?'Loading 3D structure…':'正在载入三维结构…';try{await ensureFlowModel();}catch(error){if(ticket===selectionVersion){$('loading').hidden=true;$('render-error').hidden=false;}console.error('Flow geometry:',error);return false;}}
  if(ticket!==selectionVersion)return false;
  $('render-error').hidden=true;setProduct(next,animate);$('loading').hidden=true;document.body.dataset.cadReady='true';renderLoop?.request(1600);return true;
@@ -203,22 +203,21 @@ async function selectProduct(next,animate=true){
 
 async function init(){
  try{
-  renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false,preserveDrawingBuffer:false,powerPreference:'default'});
-  renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.04;renderer.localClippingEnabled=true;renderer.shadowMap.enabled=false;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.autoClear=false;renderer.setClearColor(0xf5f5f7);
-  scene=new T.Scene();scene.background=new T.Color(0xf5f5f7);
+  renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:false,powerPreference:'default'});
+  renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;renderer.localClippingEnabled=true;renderer.shadowMap.enabled=false;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.autoClear=false;renderer.setClearColor(0x101113,0);
+  scene=new T.Scene();scene.background=null;
   camera=new T.PerspectiveCamera(32,1,.05,150);controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.dampingFactor=.06;controls.enablePan=false;controls.minDistance=6.5;controls.maxDistance=24;controls.maxPolarAngle=Math.PI*.85;controls.autoRotateSpeed=.55;controls.addEventListener('change',()=>renderLoop?.request(250));
   controls.addEventListener('start',()=>{motion=null;controls.autoRotate=false;$('auto-rotate').setAttribute('aria-pressed','false');document.body.dataset.interacted='true';});
-  scene.add(new T.HemisphereLight(0xeef3ff,0x8392a6,.42));
-  const key=new T.DirectionalLight(0xfffaf2,2.8);key.position.set(-3,6,8);key.castShadow=true;key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-5,right:5,top:5,bottom:-5,near:.1,far:30});key.shadow.bias=-.00005;key.shadow.normalBias=.006;key.shadow.radius=3;scene.add(key);
-  const fill=new T.DirectionalLight(0xc9dcff,.8);fill.position.set(5,1,-4);scene.add(fill);
+  scene.add(new T.HemisphereLight(0xeef3ff,0x636b7e,.68));
+  const key=new T.DirectionalLight(0xfff7ed,2.25);key.position.set(-3,6,8);key.castShadow=true;key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-5,right:5,top:5,bottom:-5,near:.1,far:30});key.shadow.bias=-.00005;key.shadow.normalBias=.006;key.shadow.radius=3;scene.add(key);
+  const fill=new T.DirectionalLight(0xc9dcff,1.2);fill.position.set(5,1,-4);scene.add(fill);
+  const rim=new T.DirectionalLight(0xe7edff,2.1);rim.position.set(2,4,-5);scene.add(rim);
   studioEnvironment();
   rig=new T.Group();scene.add(rig);roots.exterior=new T.Group();roots.section=new T.Group();roots.caps=new T.Group();rig.add(roots.exterior,roots.section,roots.caps);
   // Build only the requested exterior. Other products are prepared on selection.
-  // Soft contact shadow, generated locally; no product geometry is synthesized.
-  const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=128;const ctx=shadowCanvas.getContext('2d');const grad=ctx.createRadialGradient(64,64,2,64,64,64);grad.addColorStop(0,'rgba(29,43,61,.18)');grad.addColorStop(.45,'rgba(29,43,61,.07)');grad.addColorStop(1,'rgba(29,43,61,0)');ctx.fillStyle=grad;ctx.fillRect(0,0,128,128);
-  groundShadow=new T.Mesh(new T.PlaneGeometry(7.6,4.8),new T.MeshBasicMaterial({map:new T.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));groundShadow.rotation.x=-Math.PI/2;scene.add(groundShadow);
+  // The CSS studio gradient supplies the backdrop without a clipped shadow plane.
   resize();document.body.dataset.transition='false';document.body.dataset.annotations='false';
-  const observer=new ResizeObserver(resize);observer.observe(host);ids.forEach(id=>$(id).disabled=false);$('loading').hidden=true;
+  const observer=new ResizeObserver(resize);observer.observe(host);observer.observe(document.querySelector('.hero-copy'));ids.forEach(id=>$(id).disabled=false);$('loading').hidden=true;
   for(const b of document.querySelectorAll('.product-family [data-product]'))b.onclick=()=>selectProduct(b.dataset.product);
   await selectProduct(new URLSearchParams(location.search).get('product')||'flow',false);
   $('exterior-view').onclick=()=>setMode('exterior');$('section-view').onclick=()=>setMode('section');
@@ -227,11 +226,11 @@ async function init(){
   $('reset-product').onclick=()=>{clearSelection();controls.autoRotate=false;$('auto-rotate').setAttribute('aria-pressed','false');home();};
   $('part-detail').onpointerdown=e=>e.stopPropagation();$('detail-close').onclick=clearSelection;
   let down;canvas.addEventListener('pointerdown',e=>down={x:e.clientX,y:e.clientY});
-  canvas.addEventListener('pointerup',e=>{if(cutMotion||!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>5)return;const rect=canvas.getBoundingClientRect(),y=e.clientY-rect.top-frame.top;if(y<0||y>frame.height)return;pointer.set((e.clientX-rect.left)/rect.width*2-1,-y/frame.height*2+1);ray.setFromCamera(pointer,camera);const pickRoot=productId==='flow'?roots[mode]:photoModels[productId].root,hit=ray.intersectObjects(pickRoot.children,true)[0];if(hit)selectPart(hit.object.userData.part);else clearSelection();});
+  canvas.addEventListener('pointerup',e=>{if(cutMotion||!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>5)return;const rect=canvas.getBoundingClientRect(),y=e.clientY-rect.top-frame.top,x=e.clientX-rect.left-frame.left;if(y<0||y>frame.height||x<0||x>frame.width)return;pointer.set(x/frame.width*2-1,-y/frame.height*2+1);ray.setFromCamera(pointer,camera);const pickRoot=productId==='flow'?roots[mode]:photoModels[productId].root,hit=ray.intersectObjects(pickRoot.children,true)[0];if(hit)selectPart(hit.object.userData.part);else clearSelection();});
   canvas.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','+','=','-','Home','Escape'].includes(e.key))return;e.preventDefault();motion=null;if(e.key==='Escape')clearSelection();else if(e.key==='Home')home();else{const offset=camera.position.clone().sub(controls.target),spherical=new T.Spherical().setFromVector3(offset);if(e.key==='ArrowLeft')spherical.theta-=.13;if(e.key==='ArrowRight')spherical.theta+=.13;if(e.key==='ArrowUp')spherical.phi=Math.max(.1,spherical.phi-.1);if(e.key==='ArrowDown')spherical.phi=Math.min(controls.maxPolarAngle,spherical.phi+.1);if(['+','='].includes(e.key))spherical.radius=Math.max(controls.minDistance,spherical.radius*.9);if(e.key==='-')spherical.radius=Math.min(controls.maxDistance,spherical.radius*1.1);camera.position.copy(controls.target).add(new T.Vector3().setFromSpherical(spherical));controls.update();}});
   $('save-view').onclick=()=>{
    const previousRatio=renderer.getPixelRatio();renderer.setPixelRatio(Math.max(2,previousRatio));renderView();
-   const image=document.createElement('canvas');image.width=canvas.width;image.height=canvas.height+130;const c=image.getContext('2d'),padding=Math.max(20,Math.min(40,image.width*.035)),titleSize=Math.max(14,Math.min(28,Math.floor(image.width/26)));c.fillStyle='#f5f5f7';c.fillRect(0,0,image.width,image.height);c.drawImage(canvas,0,0);c.fillStyle='#1d1d1f';c.font=titleSize+'px sans-serif';c.fillText(productInfo().name+' · '+(mode==='section'?'中心剖面 A–A':'完整外观'),padding,canvas.height+44);c.fillStyle='#6e6e73';c.font=Math.max(12,Math.floor(titleSize*.6))+'px sans-serif';c.fillText(productId==='flow'?'依据用户提供的 STP 几何 · 展示配色 · 非制造图':'依据用户照片重建外观 · 尺寸比例推定 · 非制造图',padding,canvas.height+77);
+   const image=document.createElement('canvas');image.width=canvas.width;image.height=canvas.height+130;const c=image.getContext('2d'),padding=Math.max(20,Math.min(40,image.width*.035)),titleSize=Math.max(14,Math.min(28,Math.floor(image.width/26)));const bg=c.createRadialGradient(image.width*.5,canvas.height*.57,0,image.width*.5,canvas.height*.57,Math.max(image.width,canvas.height)*.65);bg.addColorStop(0,'#343538');bg.addColorStop(.5,'#202124');bg.addColorStop(1,'#101113');c.fillStyle=bg;c.fillRect(0,0,image.width,image.height);c.drawImage(canvas,0,0);c.fillStyle='#f3f3f5';c.font=titleSize+'px sans-serif';const en=document.documentElement.lang==='en';c.fillText($('product-title').textContent+' · '+(mode==='section'?(en?'Section A–A':'中心剖面 A–A'):(en?'Exterior':'完整外观')),padding,canvas.height+44);c.fillStyle='#a2a3a8';c.font=Math.max(12,Math.floor(titleSize*.6))+'px sans-serif';c.fillText(en?(productId==='flow'?'Supplied CAD geometry · display colours':'Photo-based exterior · dimensions unverified'):(productId==='flow'?'依据用户提供的 STP 几何 · 展示配色 · 非制造图':'依据用户照片重建外观 · 尺寸比例推定 · 非制造图'),padding,canvas.height+77);
    renderer.setPixelRatio(previousRatio);renderView();
    image.toBlob(blob=>{if(!blob)return;const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download='FriesGo_'+productInfo().name+'_'+mode+'.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},'image/png');
   };
